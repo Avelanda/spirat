@@ -1,0 +1,50 @@
+name: Ceate Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build
+        run: make
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          BUILD: ${{ github.sha }}
+
+      - name: Release
+        run: |
+          CREATED_RELEASE_ID=$(
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /repos/$OWNER/$REPO/releases \
+              -f tag_name="$VERSION" \
+              -f target_commitish='main' \
+              -f name="$VERSION" \
+              -f body="spirat version $VERSION" \
+              -F draft=false \
+              -F prerelease=false \
+              -F generate_release_notes=false \
+              --jq '.id'
+          )
+          gh release -R $OWNER/$REPO upload $VERSION ./build/spirat
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          VERSION: ${{ github.event.inputs.version }}
